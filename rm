@@ -1,0 +1,206 @@
+#!/usr/bin/python
+#coding=utf8
+#Author : eleven.i386
+#Email  : eleven.i386@gmail.com
+#Site   : eleveni386.7axu.com
+#Date   : 14-11-04
+#DES	: python版 rm 命令
+
+import os
+import re
+import sys
+import shutil
+import logging
+import getpass
+import ConfigParser
+
+config = ConfigParser.ConfigParser()
+
+if getpass.getuser() == 'root':
+    Recycle_Root = '/{0}/.Recycle/'.format(getpass.getuser())
+else:
+    Recycle_Root = '/home/{0}/.Recycle/'.format(getpass.getuser())
+
+Recycle_log_Path = os.path.join(Recycle_Root, '.delete')
+Recycle_config = os.path.join(Recycle_Root, '.Recycle.conf')
+
+try:
+    config.read(Recycle_config)
+    Safe_dirs = eval(config.get('Safe_dirs', 'safe_dirs'))
+except ConfigParser.NoSectionError:
+    Safe_dirs = ['^/$', '^/home/?$', '^/usr/?$', '^/var/?$']
+    config.add_section('Safe_dirs')
+    config.set('Safe_dirs', 'safe_dirs', Safe_dirs)
+    config.write(open(Recycle_config, 'w'))
+
+_Self = os.path.split(sys.argv[0])[1]
+
+class color:
+    BLACK  = 0#黑  
+    RED    = 1#红  
+    GREEN  = 2#绿  
+    YELLOW = 3#棕  
+    BLUE   = 4#蓝  
+    PURPLE = 5#紫  
+    CYAN   = 6#青  
+    GRAY   = 7#灰 
+
+color_format = '\033[0;3{0}m{1}\033[0m'.format
+
+
+class Remove():
+
+    def __init__(self):
+        if not os.path.exists(Recycle_Root):
+            os.mkdir(Recycle_Root)
+
+    def _get_current_user(self):
+        return getpass.getuser()
+
+    def _get_current_date(self):
+        import time
+        return time.strftime('%Y%m%d%H%M%S', time.localtime())
+
+    def _get_recyle_sise(self,dirs=Recycle_Root):
+
+        size = 0L
+        for root, dirs, files in os.walk(dirs):
+            size += sum([os.path.getsize(os.path.join(root, name)) for name in files])
+        return size
+
+    def _log(self, msg=None):
+
+        logging.basicConfig(filename = Recycle_log_Path, level = logging.INFO, \
+                format = '%(asctime)s - %(levelname)s: %(message)s')
+        logging.info(msg)
+
+    def _get_home_path(self):
+
+        home_path = ''
+        mounts = open('/proc/mounts', 'r')
+        for mount in mounts:
+             if mount.startswith('/dev/'):
+                 mount = mount.split()[1]
+                 if mount == '/home':
+                     home_path = mount
+                 else:
+                     home_path =  '/'
+        return home_path
+
+    def _get_home_size(self):
+
+        home_path = self._get_home_path()
+        hddinfo = os.statvfs(home_path)
+        userd = hddinfo.f_frsize * (hddinfo.f_blocks - hddinfo.f_bfree)
+        total = hddinfo.f_frsize * hddinfo.f_blocks
+        Use = float(userd) / float(total)
+
+        return {'total':total, 'userd':userd, 'Use':Use}
+
+    def remove(self, src_file, dst_file=None):
+
+        if not dst_file: 
+            dst_file = os.path.join(Recycle_Root, self._get_current_date())
+
+        if not os.path.exists(dst_file):
+            os.mkdir(dst_file)
+
+        if not os.path.exists(src_file):
+            print color_format(color.RED, '{0}: {1} 不存在!'.format(_Self, src_file))
+            self._log('{0}: {1} 不存在!'.format(_Self, src_file))
+            sys.exit(1)
+
+        old_file = os.path.join(dst_file, src_file.split('/')[-1] if src_file.split('/')[-1] else src_file.split('/')[-2])
+        new_file = old_file + '-' + self._get_current_date()
+
+        #print dst_file, old_file, new_file
+        # 垃圾桶内存在同名文件, 则 重命名 格式为 文件名-YYYYMMDDHHmmss
+        if os.path.exists(old_file):
+
+            if os.path.isdir(os.path.join(dst_file, src_file.split('/')[-1])):
+
+                os.rename(old_file, new_file)
+            else:
+
+                os.rename(old_file, new_file)
+
+        self._log('{0} 删除了 {1} 至 {2}'.format(_Self, src_file, dst_file))
+        shutil.move(src_file, dst_file)
+
+def remove(srv_file, recursive=False, force=False):
+
+    rm = Remove()
+    recycle_size = rm._get_recyle_sise()
+    home_size_total = round(rm._get_home_size()['total'],2)
+    home_size_use = round(rm._get_home_size()['Use'], 2)
+    recycle_size_use = round(float(recycle_size) / float(home_size_total), 2)
+
+    print color_format(color.GREEN, 'Recycle Use: {0}, Home Use: {1}'.format(recycle_size_use, home_size_use))
+
+    if home_size_use >= 0.9 and recycle_size_use >= 0.9:
+        print color_format(color.RED, 'Home and Recycle 目录使用率 超过了90%!')
+    elif recycle_size_use >= 0.9:
+        print color_format(color.RED, 'Recycle 目录使用率 超过了90%!')
+    elif home_size_use >= 0.9:
+        print color_format(color.RED, 'Home 目录使用率 超过了90%!')
+
+    for _file in files:
+
+        if os.path.isdir(_file):
+
+            if filter(lambda x: re.compile(x).match(_file), Safe_dirs):
+                print color_format(color.RED, '{0}: 无法删除 {1}, {1} 是重要目录'.format(_Self, _file))
+            elif recursive and force:
+                rm.remove(_file)
+            elif recursive and not force:
+                rm.remove(_file)
+            else:
+                print color_format(color.RED, '{0}: 无法删除 {1}, 是一个目录'.format(_Self, _file))
+        else:
+            rm.remove(_file)
+
+def show_log(s='all'):
+
+    if s == 'all':
+        try:
+            fp = open(Recycle_log_Path, 'r').read()
+            print fp
+        except IOError:
+            print '{0} 不存在'.format(Recycle_log_Path)
+    else:
+        # 根据时间检索日志
+        pass
+
+if __name__ == '__main__':
+    import argparse
+    __doc__ = '''
+    用于替换系统的rm命令
+    自带回收站
+    exp:
+        -a '^/$' -a '^/home/?$' # 增加/ 和 /home 目录不可删除
+        --log # 显示删除日志
+    '''
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument('-r','--recursive', action='store_true', dest='recursive_switch', help="remove directories and their contents recursively")
+    parser.add_argument('-f','--force', action='store_true', dest='force_switch', help="ignore nonexistent files and arguments, never prompt")
+    parser.add_argument('--log', action='store_true', dest='log_switch', help="show delete log")
+    parser.add_argument('-a', '--add_safe_dirs', action='append', dest='safe_dir', help="add safe dirs regex", default=[])
+    parser.add_argument('file', help="file...", nargs='*', default=[])
+    args = parser.parse_args()
+    force = args.force_switch
+    recursive = args.recursive_switch
+    log = args.log_switch
+    safe_dir = args.safe_dir
+    path=os.getcwd()
+    files = [ os.path.join(path,i) for i in args.file if os.path.split(sys.argv[0])[1] != i ]
+
+    if not force and not recursive and log:
+        show_log()
+    elif force or recursive:
+        remove(files, recursive, force)
+    elif not force and not recursive and safe_dir:
+        new_dir = Safe_dirs + safe_dir
+        config.set('Safe_dirs', 'safe_dirs', new_dir)
+        config.write(open(Recycle_config,'w'))
+    else:
+        remove(files, recursive, force)
