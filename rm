@@ -21,6 +21,9 @@ if getpass.getuser() == 'root':
 else:
     Recycle_Root = '/home/{0}/.Recycle/'.format(getpass.getuser())
 
+if not os.access(Recycle_Root, os.R_OK):
+    os.mkdir(Recycle_Root)
+
 Recycle_log_Path = os.path.join(Recycle_Root, '.delete')
 Recycle_config = os.path.join(Recycle_Root, '.Recycle.conf')
 
@@ -31,7 +34,12 @@ except ConfigParser.NoSectionError:
     Safe_dirs = ['^/$', '^/home/?$', '^/usr/?$', '^/var/?$']
     config.add_section('Safe_dirs')
     config.set('Safe_dirs', 'safe_dirs', Safe_dirs)
-    config.write(open(Recycle_config, 'w'))
+    if os.access(Recycle_config, os.R_OK):
+        config.write(open(Recycle_config, 'w'))
+    else:
+        os.mknod(Recycle_config)
+        config.write(open(Recycle_config, 'w'))
+
 
 _Self = os.path.split(sys.argv[0])[1]
 
