@@ -16,10 +16,11 @@ import ConfigParser
 
 config = ConfigParser.ConfigParser()
 
-if getpass.getuser() == 'root':
-    Recycle_Root = '/{0}/.Recycle/'.format(getpass.getuser())
-else:
-    Recycle_Root = '/home/{0}/.Recycle/'.format(getpass.getuser())
+Recycle_Root = '{HOME}/.Recycle/'.format(HOME=os.environ.get('HOME'))
+#if getpass.getuser() == 'root':
+#    Recycle_Root = '/{0}/.Recycle/'.format(getpass.getuser())
+#else:
+#    Recycle_Root = '/home/{0}/.Recycle/'.format(getpass.getuser())
 
 Recycle_log_Path = os.path.join(Recycle_Root, '.delete')
 Recycle_config = os.path.join(Recycle_Root, '.Recycle.conf')
