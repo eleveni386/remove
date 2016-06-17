@@ -213,7 +213,7 @@ if __name__ == '__main__':
 
     if len(sys.argv) <= 1:
         print __doc__
-    elif not force and not recursive and not log and recycle_s != None:
+    elif not force and not recursive and not log and recycle_s:
         recycle_status()
     elif not force and not recursive and log != None:
         show_log(log)
